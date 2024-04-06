@@ -1,0 +1,183 @@
+---
+---
+---
+
+# R 練習
+
+# YuTing
+
+# **Online Food Dataset From Kaggle**
+
+# **複習資料視覺化**
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(conflicted)
+library(dplyr)
+setwd("D:/data/Desktop/practice")
+onlinefood<-read.csv("fooddelivery/onlinefoods.csv")
+```
+
+## 
+
+```{r }
+anyNA(onlinefood)
+head(onlinefood)
+
+  
+```
+
+**檢視年齡分布**
+
+```{r}
+onlinefood<-subset(onlinefood,select = -c(X, latitude, longitude,Pin.code,Output))
+onlinefood%>%
+  ggplot(aes(x=Age))+geom_density()
+
+
+```
+
+## Including Plots
+
+```{r pressure, echo=FALSE}
+onlinefood$Marital.Status<-factor(onlinefood$Marital.Status,order="TRUE",levels=c("Single","Married","Prefer not to say"))
+onlinefood%>%
+  ggplot(aes(x=Marital.Status))+geom_bar()
+```
+
+學生點外送比例高，依個數排序職業類別
+
+```{r , echo=FALSE}
+library(forcats)
+ggplot(onlinefood,aes(x=fct_infreq(Occupation)))+geom_bar()+
+  labs(x="Occu")
+```
+
+## 處理收入變數
+
+```{r}
+table(onlinefood$Monthly.Income)
+```
+
+```{r}
+onlinefood<-onlinefood%>%
+  mutate(income=case_when(Monthly.Income=="Below Rs.10000"~5000,
+                          Monthly.Income=="10001 to 25000"~17500,
+                          Monthly.Income=="25001 to 50000"~37500,
+                          Monthly.Income=="More than 50000"~50000,
+                          TRUE~0))%>%
+  mutate(feedback10=ifelse(Feedback=="Positive",10,-10))
+```
+
+## 接著檢視負評與哪項因素較有關
+
+```{r , echo=FALSE}
+ggplot(onlinefood,aes(x=Occupation,y=Feedback))+geom_count()
+```
+
+```{r, echo=FALSE}
+ggplot(data = onlinefood, aes(x = Occupation, fill = Feedback)) +
+  geom_bar(position = "fill")
+```
+
+## 上圖之數值(滿意度比例by就業情況)
+
+```{r, echo=FALSE}
+onlinefood_occ<-onlinefood%>%
+  group_by(Occupation)%>%
+  dplyr::summarise(Positive_n=sum(Feedback=="Positive"),n=n(),per=Positive_n/n)
+onlinefood_occ
+```
+
+### 把(position = "fill")拿掉，從累積百分比，變成個數，以檢視實際個數差距
+
+```{r, echo=FALSE}
+ggplot(data = onlinefood, aes(x = Occupation, fill = Feedback)) +
+  geom_bar()
+```
+
+接著嘗試月收入
+
+```{r}
+onlinefood$Monthly.Income<-factor(onlinefood$Monthly.Income,level=c("No Income","Below Rs.10000","10001 to 25000","25001 to 50000","More than 50000"))
+ggplot(data = onlinefood, aes(x = Monthly.Income, fill = Feedback)) +
+  geom_bar(position = "fill")
+```
+
+接著嘗試家庭人數
+
+```{r echo=FALSE}
+ggplot(data = onlinefood, aes(x = Family.size, fill = Feedback)) +
+  geom_bar(position = "fill")
+```
+
+接著嘗試 性別\*感情狀況
+
+```{r}
+ggplot(data = onlinefood, aes(x = interaction(Gender,Marital.Status), fill = Feedback)) +
+  geom_bar(position = "fill")+scale_x_discrete(guide=guide_axis(angle=45))
+```
+
+## 矩形式樹狀圖
+
+安裝treemapify
+
+**ggplot(資料, aes(area=, color=, fill=, linetype=, alpha=, subgroup=, subgroup2=, subgroup3=))**
+
++----------------------------------+----------------------------+--------------------------------------------------------------+
+| **函式**                         | **功能**                   | **引數**                                                     |
++:=================================+:===========================+:=============================================================+
+| `geom_treemap()`                 | 建立樹狀圖                 | 引數設定承襲於`ggplot()`函式內各引數                         |
++----------------------------------+----------------------------+--------------------------------------------------------------+
+| `geom_treemap_subgroup_border()` | 設定樹狀圖子類別間線條樣式 |                                                              |
++----------------------------------+----------------------------+--------------------------------------------------------------+
+| `geom_treemap_text()`            | 設定樹狀圖文字樣式         | `color`:文字顏色\                                            |
+|                                  |                            | `size`:文字大小\                                             |
+|                                  |                            | `alpha`:文字透明度\                                          |
+|                                  |                            | `family`:文字字型\                                           |
+|                                  |                            | `fontface`:文字樣式\                                         |
+|                                  |                            | `angle`:文字角度\                                            |
+|                                  |                            | `place`:文字位置（`bottom`、`topleft`、`top`、`topright`…）\ |
+|                                  |                            | `grow`:將文字壓縮於矩形內                                    |
++----------------------------------+----------------------------+--------------------------------------------------------------+
+| `geom_treemap_subgroup_text()`   | 設定樹狀圖子類別文字樣式   |                                                              |
++----------------------------------+----------------------------+--------------------------------------------------------------+
+
+```{r}
+library(treemapify)
+onlinefood_occ<-onlinefood_occ%>%
+  mutate(negative=n-Positive_n)
+ggplot(onlinefood_occ,
+       aes(area=n, fill=Occupation,label=Occupation, subgroup=Occupation))+
+  geom_treemap()+
+  geom_treemap_text(size=15, color="#3C3C3C", alpha=0.5, fontface="bold")
+```
+
+```{r}
+onlinefood_tree<-onlinefood%>%
+  group_by(Occupation,Feedback)%>%
+  dplyr::summarise(n=n())%>%
+  mutate(Occ_feedback=paste0(Occupation,Feedback))
+onlinefood_tree
+ggplot(onlinefood_tree,
+       aes(area=n, fill=Occupation,label=Feedback, subgroup=Occupation,subgroup2=Occ_feedback))+
+  geom_treemap()+
+  geom_treemap_text(size=15, color="#3C3C3C", alpha=0.5, fontface="bold")+
+    geom_treemap_subgroup_text(grow=T, color="white", alpha=0.3, fontface="bold", place="center")+
+  geom_treemap_subgroup2_text(size=10, color="#003D79", alpha=0.5, fontface="bold", place="bottomright")
+
+```
+
+## 泡泡圖
+
+```{r}
+onlinefood=arrange(onlinefood, desc(Family.size))
+
+ggplot(data=onlinefood, aes(x=Age, y=income))+
+  geom_point(aes(size=Family.size, fill=Occupation), alpha=0.5, shape=21)+
+  scale_size_continuous(range=c(.1, 10))+
+  scale_fill_brewer(palette="Set2")
+```
+
+> **失敗** income不是真正的連續變數，容易重疊
